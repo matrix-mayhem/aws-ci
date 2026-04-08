@@ -1,0 +1,62 @@
+name: AWS DevOps CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    # Configure AWS
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    # Login to ECR
+    - name: Login to ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION | \
+        docker login --username AWS --password-stdin \
+        ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+    # Build Images
+    - name: Build Docker Images
+      run: |
+        docker build -t api-service ./api-service
+        docker build -t worker-service ./worker-service
+        docker build -t frontend ./frontend
+
+    # Tag Images
+    - name: Tag Images
+      run: |
+        docker tag api-service ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/api-service:latest
+        docker tag worker-service ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/worker-service:latest
+        docker tag frontend ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/frontend:latest
+
+    # Push Images
+    - name: Push to ECR
+      run: |
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/api-service:latest
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/worker-service:latest
+        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/frontend:latest
+
+    # Deploy to Kubernetes
+    # - name: Setup kubectl
+    #   uses: azure/setup-kubectl@v3
+
+    # - name: Set kubeconfig
+    #   run: |
+    #     echo "${{ secrets.KUBECONFIG }}" > kubeconfig.yaml
+    #     export KUBECONFIG=kubeconfig.yaml
+
+    # - name: Deploy
+    #   run: |
+    #     kubectl apply -f k8s/

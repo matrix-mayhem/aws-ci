@@ -1,4 +1,4 @@
 apiVersion: v1
-kind: Namsespace
+kind: Namespace
 metadata:
   name: devops
